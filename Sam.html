@@ -1,0 +1,247 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>КІ-406 Примак Богдан</title>
+</head>
+<body>
+
+<script> 
+
+const canvas = document.createElement("canvas");
+const ctx = canvas.getContext("2d");
+document.body.appendChild(canvas);
+
+document.body.style.display = "flex";
+document.body.style.flexDirection = "column";
+document.body.style.alignItems = "center";
+document.body.style.height = "100vh";
+document.body.style.backgroundColor = "black";
+
+const jumpSound = new Audio("game_over.mp3");
+
+canvas.style.border = "5px solid white";
+
+const baseWidth = 400;
+const baseHeight = 600;
+let scale = 1;
+let gameStarted = false;
+
+const backgroundImage = new Image();
+backgroundImage.src = "gr.png"; 
+
+const playerImage = new Image();
+playerImage.src = "egg.png";
+
+const playerImageGameOver = new Image();
+playerImageGameOver.src = "degg.png";
+
+const obstacleImage = new Image();
+obstacleImage.src = "stone1.png";
+
+let playerName = prompt("Enter your name:") || "Player";
+
+const player = {
+    baseX: baseWidth / 2 - 20,
+    baseY: baseHeight - 80,
+    baseWidth: 40,
+    baseHeight: 40,
+    baseSpeed: 10,
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    speed: 0
+};
+
+const obstacles = [];
+let gameOver = false;
+let gameTime = 0;
+let obstacleSpeed = 3;
+let keys = {};
+
+function resizeCanvas() {
+    scale = Math.min(window.innerWidth * 0.8 / baseWidth, window.innerHeight * 0.8 / baseHeight);
+    canvas.width = baseWidth * scale;
+    canvas.height = baseHeight * scale;
+    
+    if (!gameStarted) {
+        player.x = player.baseX * scale;
+    }
+    player.y = player.baseY * scale;
+    player.width = player.baseWidth * scale;
+    player.height = player.baseHeight * scale;
+    player.speed = player.baseSpeed * scale;
+}
+
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+function drawBackground() {
+    ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+}
+
+function drawPlayer() {
+    if (gameOver) {
+        ctx.drawImage(backgroundImage, player.x, player.y, player.width, player.height, player.x, player.y, player.width, player.height);
+
+        setTimeout(() => {
+            ctx.drawImage(playerImageGameOver, player.x, player.y, player.width, player.height);
+        }, 50);
+    } else {
+        ctx.drawImage(playerImage, player.x, player.y, player.width, player.height);
+    }
+}
+
+function drawObstacles() {
+    obstacles.forEach(obstacle => {
+        ctx.drawImage(obstacleImage, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+    });
+}
+
+function drawTimer() {
+    ctx.fillStyle = "white";
+    ctx.font = `${20 * scale}px Arial`;
+    ctx.fillText(`Time: ${gameTime}s`, 10 * scale, 30 * scale);
+}
+
+function updateObstacles() {
+    if (Math.random() < 0.02) {
+        let availablePositions = [];
+        for (let i = 0; i < baseWidth / 40; i++) {
+            availablePositions.push(i * 40);
+        }
+        
+        obstacles.forEach(obstacle => {
+            availablePositions = availablePositions.filter(pos => Math.abs(pos - obstacle.baseX) >= 80);
+        });
+        
+        if (availablePositions.length > 0) {
+            let newObstacle = {
+                baseX: availablePositions[Math.floor(Math.random() * availablePositions.length)],
+                baseY: -40,
+                baseWidth: 40,
+                baseHeight: 40,
+                baseSpeed: obstacleSpeed,
+                x: 0,
+                y: 0,
+                width: 0,
+                height: 0,
+                speed: 0
+            };
+            newObstacle.x = newObstacle.baseX * scale;
+            newObstacle.y = newObstacle.baseY * scale;
+            newObstacle.width = newObstacle.baseWidth * scale;
+            newObstacle.height = newObstacle.baseHeight * scale;
+            newObstacle.speed = newObstacle.baseSpeed * scale;
+            obstacles.push(newObstacle);
+        }
+    }
+    
+    obstacles.forEach(obstacle => {
+        obstacle.baseY += obstacle.baseSpeed;
+        obstacle.y = obstacle.baseY * scale;
+    });
+    
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        if (obstacles[i].baseY > baseHeight) {
+            obstacles.splice(i, 1);
+        }
+    }
+}
+
+function checkCollision() {
+    obstacles.forEach(obstacle => {
+        const collisionBuffer = 5 * scale;
+        if (
+            player.x + collisionBuffer < obstacle.x + obstacle.width - collisionBuffer &&
+            player.x + player.width - collisionBuffer > obstacle.x + collisionBuffer &&
+            player.y + collisionBuffer < obstacle.y + obstacle.height - collisionBuffer &&
+            player.y + player.height - collisionBuffer > obstacle.y + collisionBuffer
+        ) {
+            gameOver = true;
+        }
+    });
+}
+
+function saveScore() {
+    let scores = JSON.parse(localStorage.getItem("scores")) || [];
+    scores.push({ name: playerName, time: gameTime });
+    scores.sort((a, b) => b.time - a.time);
+    scores = scores.slice(0, 10);
+    localStorage.setItem("scores", JSON.stringify(scores));
+}
+
+function showScores() {
+    let scores = JSON.parse(localStorage.getItem("scores")) || [];
+    let scoreText = "High Scores:\n" + scores.map((s, i) => `${i + 1}. ${s.name}: ${s.time}s`).join("\n");
+    alert(scoreText);
+}
+
+function update() {
+    if (gameOver) {
+        saveScore();
+        drawPlayer();
+        jumpSound.play();
+        setTimeout(() => {
+            alert(`Game Over! Time Survived: ${gameTime}s`);
+            showScores();
+            document.location.reload();
+        }, 500);
+        return;
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBackground();
+    drawPlayer();
+    drawObstacles();
+    drawTimer();
+    updateObstacles();
+    checkCollision();
+    
+    if (keys["ArrowLeft"] && player.x > 0) {
+        player.x -= player.speed;
+    }
+    if (keys["ArrowRight"] && player.x < canvas.width - player.width) {
+        player.x += player.speed;
+    }
+    
+    requestAnimationFrame(update);
+}
+
+setInterval(() => {
+    if (!gameOver) {
+        gameTime++;
+        obstacleSpeed += 0.1;
+    }
+}, 1000);
+
+// 🎮 Додано сенсорне керування для мобільних!
+document.addEventListener("touchstart", (event) => {
+    const touchX = event.touches[0].clientX;
+    
+    if (touchX < window.innerWidth / 2) {
+        keys["ArrowLeft"] = true;
+    } else {
+        keys["ArrowRight"] = true;
+    }
+});
+
+document.addEventListener("touchend", () => {
+    keys["ArrowLeft"] = false;
+    keys["ArrowRight"] = false;
+});
+
+document.addEventListener("keydown", (event) => {
+    keys[event.key] = true;
+    gameStarted = true;
+});
+
+document.addEventListener("keyup", (event) => {
+    keys[event.key] = false;
+});
+
+update();
+
+</script>
+</body>
+</html>
